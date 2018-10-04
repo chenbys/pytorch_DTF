@@ -1,10 +1,11 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-import matplotlib.pylab as plt
+import matplotlib.pyplot as plt
 
 from torch import nn
 from torch.autograd import Variable
+from debug_kit import *
 
 
 class DCN(nn.Module):
@@ -18,23 +19,22 @@ class DCN(nn.Module):
     def forward(self, feature, offset):
         '''
 
-        :param x: [32,128,28,28]
+        :param feature: [32,128,28,28]
         :param offset: [32,18,28,28]
         :return:
         '''
 
-        ESP = 1e-9
         B, C, H, W = feature.shape
         k = self.kernel_size
 
         source_idx_x = range(0, W)
         source_idx_y = range(0, H)
 
-        fgrid = torch.randn([B, H * k, W * k, 2], requires_grad=True).type_as(feature).cuda()
+        fgrid = torch.randn([B, H * k, W * k, 2], requires_grad=False).type_as(feature).cuda()
         for x in source_idx_x:
             for y in source_idx_y:
                 anchor_ = ([x, y] - np.array([W - 1, H - 1]) / 2.) / (np.array([W - 1, H - 1]) / 2.)
-                anchor = torch.tensor(anchor_, requires_grad=True).type_as(feature).cuda()
+                anchor = torch.tensor(anchor_, requires_grad=False).type_as(feature).cuda()
 
                 kernel_offset_ = offset[:, :, x, y]
                 kernel_offset = kernel_offset_.view((B, k, k, 2))
@@ -44,5 +44,20 @@ class DCN(nn.Module):
                 # size:[32,3,3,2]
                 fgrid[:, k * y:k * y + k, k * x:k * x + k, :] = target
 
-        transformed_feature = F.grid_sample(feature, fgrid, mode='bilinear')
-        return self.conv_kernel(transformed_feature)
+        deformed_feature = F.grid_sample(feature, fgrid, mode='bilinear')
+
+        # debug function
+        def compare(R=range(0, 5)):
+            f = plt.figure(figsize=(4,10))
+            N = len(R)
+            for i in R:
+                source = feature[i, 0, :, :].detach().cpu().numpy()
+                target = deformed_feature[i, 0, :, :].detach().cpu().numpy()
+                x1 = plt.subplot(N, 2, 2 * i + 1)
+                x2 = plt.subplot(N, 2, 2 * i + 2)
+                x1.imshow(source)
+                x2.imshow(target)
+            f.show()
+            # f.subplots_adjust(wspace=0.1, hspace=0.2)
+
+        return self.conv_kernel(deformed_feature)
