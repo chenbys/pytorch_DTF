@@ -1,4 +1,4 @@
-# DIP course
+# Project for DIP course
 ## TODO list
 - [ ] 分析STN的梯度流
 - [ ] 初始化仿射变换的参数，使得source与目标无交集，观察记录梯度与变换的迭代过程
@@ -12,7 +12,7 @@
 ## Our Work
     尚待探索QAQ
 
-## Expriments show
+## Experiments
 1. simple mnist demo
 simple deformed feature show
 ![](img/img_show.png)
