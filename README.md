@@ -2,6 +2,7 @@
 ## TODO list
 - [ ] 分析STN的梯度流
 - [ ] 初始化仿射变换的参数，使得source与目标无交集，观察记录梯度与变换的迭代过程
+- [ ] 跑通mxnet官版demormable networks.将配好的环境存成docker image以便交流
 - [ ] 验证deformable conv的正确性
 - [ ] 改进deformable conv中生成grid的实现（在下觉得应该能改进）
 - [ ] 按runtime warning要求修改
