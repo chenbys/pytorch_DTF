@@ -196,10 +196,6 @@ def train(epoch):
             optimizer.step()
             pbar.set_description("loss:%.4f" % (loss.item()))
             pbar.update(1)
-            # if batch_idx % args.log_interval == 0:
-            #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-            #         epoch, batch_idx * len(data), len(train_loader.dataset),
-            #                100. * batch_idx / len(train_loader), loss.data[0]))
 
 
 def test():
@@ -211,7 +207,7 @@ def test():
             data, target = data.cuda(), target.cuda()
         data, target = Variable(data, volatile=True), Variable(target)
         output = model(data)
-        test_loss += F.nll_loss(output, target, size_average=False).data[0]  # sum up batch loss
+        test_loss += F.nll_loss(output, target, size_average=False).item()  # sum up batch loss
         pred = output.data.max(1, keepdim=True)[1]  # get the index of the max log-probability
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
@@ -221,16 +217,9 @@ def test():
         100. * correct / len(test_loader.dataset)))
 
 
-# for epoch in tqdm(range(1,args.epochs+1)):
-#     since = time()
-#     train(epoch)
-#     # iter = time() - since
-#     print("Spends {}s for each training epoch".format(iter / args.epochs))
-#     test()
-
 for epoch in range(1, args.epochs + 1):
     since = time()
     train(epoch)
     iter = time() - since
-    print("Spends {}s for each training epoch".format(iter / args.epochs))
+    print("Epoch:{}.Spends {}s for each training epoch".format(epoch, iter / args.epochs))
     test()
