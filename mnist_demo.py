@@ -6,11 +6,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
-from chens_dcn import DCN
 from tqdm import tqdm
 from time import time
 
-# Training settings
+from models import DeformableConvNetwork
+
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
 parser.add_argument('--batch-size', type=int, default=32, metavar='N',
                     help='input batch size for training (default: 32)')
@@ -28,6 +28,7 @@ parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                     help='how many batches to wait before logging training status')
+
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -52,114 +53,6 @@ test_loader = torch.utils.data.DataLoader(
     batch_size=args.test_batch_size, shuffle=True, **kwargs)
 
 
-class CDCN(nn.Module):
-    def __init__(self):
-        super(CDCN, self).__init__()
-        self.offset_conv = nn.Conv2d(1, 18, kernel_size=3, padding=1)
-        self.dcn = DCN(1, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
-
-        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(128)
-        self.classifier = nn.Linear(128, 10)
-
-    def forward(self, x):
-        offset = self.offset_conv(x)
-        x = self.dcn(x, offset)
-        x = self.bn1(x)
-        x = F.relu(self.conv2(x))
-        x = self.bn2(x)
-        x = F.relu(self.conv3(x))
-        x = self.bn3(x)
-        x = F.relu(self.conv4(x))
-        x = self.bn4(x)
-
-        x = F.avg_pool2d(x, kernel_size=28, stride=1).view(x.size(0), -1)
-        x = self.classifier(x)
-
-        return F.log_softmax(x, dim=1)
-
-
-class DeformNet(nn.Module):
-    def __init__(self):
-        super(DeformNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
-
-        self.offsets = nn.Conv2d(128, 18, kernel_size=3, padding=1)
-        self.conv4 = DCN(128, 128, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(128)
-
-        self.classifier = nn.Linear(128, 10)
-
-    def forward(self, x):
-        # convs
-        x = F.relu(self.conv1(x))
-        x = self.bn1(x)
-        x = F.relu(self.conv2(x))
-        x = self.bn2(x)
-        x = F.relu(self.conv3(x))
-        x = self.bn3(x)
-        # deformable convolution
-        offsets = self.offsets(x)
-        x = F.relu(self.conv4(x, offsets))
-        x = self.bn4(x)
-
-        x = F.avg_pool2d(x, kernel_size=28, stride=1).view(x.size(0), -1)
-        x = self.classifier(x)
-
-        return F.log_softmax(x, dim=1)
-
-
-class PlainNet(nn.Module):
-    def __init__(self):
-        super(PlainNet, self).__init__()
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
-
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
-
-        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(128)
-
-        self.classifier = nn.Linear(128, 10)
-
-    def forward(self, x):
-        # convs
-        x = F.relu(self.conv1(x))
-        x = self.bn1(x)
-        x = F.relu(self.conv2(x))
-        x = self.bn2(x)
-        x = F.relu(self.conv3(x))
-        x = self.bn3(x)
-        x = F.relu(self.conv4(x))
-        x = self.bn4(x)
-
-        x = F.avg_pool2d(x, kernel_size=28, stride=1).view(x.size(0), -1)
-        x = self.classifier(x)
-
-        return F.log_softmax(x, dim=1)
-
-
-model = CDCN()
-
-
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
         nn.init.xavier_uniform(m.weight, gain=nn.init.calculate_gain('relu'))
@@ -173,6 +66,7 @@ def init_conv_offset(m):
         m.bias.data = torch.FloatTensor(m.bias.shape[0]).zero_()
 
 
+model = DeformableConvNetwork()
 model.apply(init_weights)
 model.offset_conv.apply(init_conv_offset)
 
@@ -212,7 +106,7 @@ def test():
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
     test_loss /= len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
@@ -220,6 +114,6 @@ def test():
 for epoch in range(1, args.epochs + 1):
     since = time()
     train(epoch)
-    iter = time() - since
-    print("Epoch:{}.Spends {}s for each training epoch".format(epoch, iter / args.epochs))
+    spent = time() - since
+    print('Epoch %2d, Spends %.2fm' % (epoch, spent / 60.))
     test()
