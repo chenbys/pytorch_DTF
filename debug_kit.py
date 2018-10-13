@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 
+plt.use('Agg')
 
-def show_img_tensor(img_t):
-    img = img_t.detach().cpu().numpy()
-    plt.imshow(img)
-    plt.show()
+
+def show_plt(plt):
+    return
